@@ -377,7 +377,7 @@ export default class Stage0Renderer {
     // Invariant: Morph has been rendered previously.
     const node = this.getNodeForMorph(morph);
 
-    let submorphsToRender = morph.submorphs;
+    let submorphsToRender = morph.submorphs; // the order of these is important to make sure that morphs overlap each other correctly
     if (morph.isWorld){
       submorphsToRender = morph.submorphs.filter(sm => !sm.hasFixedPosition)
     }
@@ -491,11 +491,7 @@ export default class Stage0Renderer {
       // submorph.afterRenderHook(node);
     } */
 
-    submorphsToRender.forEach(m => {
-      arr.pushIfNotIncluded(morph.renderingState.renderedMorphs, m)
-    })
-    
-    morph.renderingState.renderedMorphs = arr.intersect(morph.renderingState.renderedMorphs, morph.submorphs);
+    morph.renderingState.renderedMorphs = morph.submorphs.filter(sm => !sm.hasFixedPosition && !sm._isInline)
     morph.renderingState.hasStructuralChanges = false;
   }
 
