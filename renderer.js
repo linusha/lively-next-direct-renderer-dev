@@ -491,7 +491,7 @@ export default class Stage0Renderer {
       // submorph.afterRenderHook(node);
     } */
 
-    morph.renderingState.renderedMorphs = morph.submorphs.filter(sm => !sm.hasFixedPosition && !sm._isInline)
+    morph.renderingState.renderedMorphs = morph.submorphs.filter(sm => !(sm.hasFixedPosition && morph.isWorld) && !sm._isInline)
     morph.renderingState.hasStructuralChanges = false;
   }
 
