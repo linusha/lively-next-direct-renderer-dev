@@ -825,6 +825,7 @@ export default class Stage0Renderer {
     textLayerClasses = textLayerClasses + ' ' + (fixedWidth ? lineWrappingToClass(lineWrapping) : lineWrappingToClass(false));
 
     // TODO: we want to support right and left align also for morpht that have a non-fixed widht and or height
+    // TODO: this is what fucks up the allignment of the annotations in e.g. the run command menu
     if (!fixedWidth) textLayerClasses = textLayerClasses + ' auto-width';
     if (!fixedHeight) textLayerClasses = textLayerClasses + ' auto-height';
     if (selectionMode === 'native') textLayerClasses = textLayerClasses + ' selectable';
@@ -858,7 +859,9 @@ export default class Stage0Renderer {
    */
   nodeForLine (lineObject, morph, isRealRender = false) {
     if (lineObject === null) lineObject = '';
-    const line = lineObject.isLine ? lineObject.textAndAttributes : lineObject;
+    let line;
+    if (morph.isListItemMorph) line = morph.textAndAttributes.flat();
+    else line = lineObject.isLine ? lineObject.textAndAttributes : lineObject;
     const size = line.length;
 
     const renderedChunks = [];
@@ -1018,13 +1021,14 @@ export default class Stage0Renderer {
    * @returns {Node[]} An array of nodes that represent lines.
    */
   renderAllLines (morph) {
-    const renderedLines = [];
+    let renderedLines = [];
     if (!morph.document) {
     // when we have no doc, text and attributes are split into lines
       for (let i = 0; i < morph.textAndAttributes.length; i++) {
         const newLine = this.nodeForLine(morph.textAndAttributes[i], morph, true);
         renderedLines.push(newLine);
       }
+      if (morph.isListItemMorph) renderedLines = renderedLines.slice(0,1);
     }
     return renderedLines;
   }
