@@ -1520,7 +1520,8 @@ export default class Stage0Renderer {
       const linesToRender = this.collectVisibleLinesForRendering(morph, node);
       morph.viewState.visibleLines = linesToRender;
       // FIXME: hack that compensates for errornous content in renderingState.renderedLines
-      const renderedLinesFromDOM = [];
+      // basically an optimization to reuse already rendered line nodes
+      let renderedLinesFromDOM = [];
       textNode.childNodes.forEach(node => {
         if (!node.classList.contains('line')) return;
         const ds = node.dataset;
@@ -1528,6 +1529,13 @@ export default class Stage0Renderer {
         const line = morph.document.lines[row];
         renderedLinesFromDOM.push(line)
       })
+      // in case we have switched the document (e.g., due to loading another file in the system browser)
+      // the above optimization will fail
+      // this forces to rerender all visible lines in the new document
+      if (renderedLinesFromDOM.some(e => e === undefined)){
+        renderedLinesFromDOM = [];
+        textNode.replaceChildren();
+      }
       morph.renderingState.renderedLines = renderedLinesFromDOM;
       keyed('row',
         textNode,
