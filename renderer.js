@@ -454,14 +454,21 @@ export default class Stage0Renderer {
       }
     } else { // morph is not path
       if (skipWrapping) {
-        const beforeElem = node.firstChild;
+        // Hack solely for the MullerColumns!!!
+        // super bad, should not exists!!!!
+        // DANGER!
+        if (alreadyRenderedSubmorphs.length === 1) {
+          if (node.firstChild) node.firstChild.remove();
+          alreadyRenderedSubmorphs = [];
+        }
+
         keyed('id',
           node,
           alreadyRenderedSubmorphs,
           submorphsToRender,
           item => this.renderMorph(item),
           noOpUpdate,
-          this.isComposite(morph) ? beforeElem : null// before list
+          this.isComposite(morph) ? node.firstChild : null // before list
         );
       } else {
         this.installWrapperNodeFor(morph, node);
@@ -502,7 +509,7 @@ export default class Stage0Renderer {
    * @param {Morph} morph - The morph for which to check if it results in multiple nodes.
    */
   isComposite (morph) {
-    return morph.isCanvas || morph.isHTMLMorph || morph.isImage || morph.isCheckbox;
+    return morph.isCanvas || morph.isHTMLMorph || morph.isImage || morph.isCheckbox ;
   }
 
   /**
