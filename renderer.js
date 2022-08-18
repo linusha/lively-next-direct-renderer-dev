@@ -867,7 +867,9 @@ export default class Stage0Renderer {
   nodeForLine (lineObject, morph, isRealRender = false) {
     if (lineObject === null) lineObject = '';
     let line;
-    if (morph.isListItemMorph) line = morph.textAndAttributes.flat();
+    if (morph.isListItemMorph) {
+      line = morph.textAndAttributes.flat()
+    }
     else line = lineObject.isLine ? lineObject.textAndAttributes : lineObject;
     const size = line.length;
 
@@ -1513,6 +1515,11 @@ export default class Stage0Renderer {
    * @param {TextMorph} morph - The TextMorph for which the text should be (re)rendered.
    */
   renderTextAndAttributes (node, morph) {
+    // FIXME:  hackz
+    if (morph.isLabel && !morph.labelMode){
+      morph.setProperty('labelMode', true);
+    } 
+    if (morph.labelMode && morph.document) morph.makeUninteractive();
     const textNode = node.querySelector('.actual');
     if (morph.labelMode) textNode.replaceChildren(...this.renderAllLines(morph));
     else {
