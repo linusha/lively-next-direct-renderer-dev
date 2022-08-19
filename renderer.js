@@ -1831,7 +1831,6 @@ export default class Stage0Renderer {
 
       if (nodeHeight && nodeWidth && (docLine.height !== nodeHeight || docLine.width !== nodeWidth) &&
          morph.fontMetric.isFontSupported(morph.fontFamily, morph.fontWeight)) {
-        // console.log(`[${docLine.row}] ${nodeHeight} vs ${docLine.height}`)
         docLine.changeExtent(nodeWidth, nodeHeight, false);
         morph.textLayout.resetLineCharBoundsCacheOfLine(docLine);
         morph.viewState._needsFit = true; // is this still needed? what did it do?
