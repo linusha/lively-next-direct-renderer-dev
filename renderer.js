@@ -1748,7 +1748,8 @@ export default class Stage0Renderer {
    * @returns {Rectangle} The actual bounds of `morph` when rendered into the DOM.
    */
   measureBoundsFor (morph) {
-    if (!morph.renderingState.needsRemeasure) return morph._cachedBounds;
+    if (!morph.renderingState.needsRemeasure && morph._cachedBounds) return morph._cachedBounds;
+
     const node = this.getNodeForMorph(morph);
     if (!node) return Rectangle.inset(0);
     const textNode = node.querySelector('.actual');
