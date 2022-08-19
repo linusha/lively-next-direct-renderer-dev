@@ -1557,7 +1557,8 @@ export default class Stage0Renderer {
       let i = 0; // the first child is always the filler, we can skip it
       for (const line of morph.renderingState.renderedLines) {
         i++;
-        if (!line.needsRerender) continue;
+        // this basically ignores the needsRerender flag for now when embedding morphs inline into a text
+        if (!line.needsRerender && line.textAndAttributs && !line.textAndAttributes.some(ta => ta && ta.isMorph)) continue;
         const oldLineNode = textNode.children[i];
         const newLineNode = this.nodeForLine(line, morph, true);
         textNode.replaceChild(newLineNode, oldLineNode);
