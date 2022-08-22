@@ -72,8 +72,8 @@ function longestPositiveIncreasingSubsequence (ns, newStart) {
 export function keyed (key, parent, renderedValues, data, createFn, noOp = noOpUpdate, beforeNode, afterNode) {
   // Fast path for clear
   if (data.length === 0) {
-    if (beforeNode !== undefined || afterNode !== undefined) {
-      let node = beforeNode !== undefined ? beforeNode.nextSibling : parent.firstChild;
+    if (beforeNode || afterNode) {
+      let node = beforeNode ? beforeNode.nextSibling : parent.firstChild;
       let tmp;
 
       if (afterNode === undefined) afterNode = null;
@@ -91,7 +91,7 @@ export function keyed (key, parent, renderedValues, data, createFn, noOp = noOpU
 
   // Fast path for create
   if (renderedValues.length === 0) {
-    let node; let mode = afterNode !== undefined ? 1 : 0;
+    let node; let mode = afterNode ? 1 : 0;
     for (let i = 0, len = data.length; i < len; i++) {
       node = createFn(data[i]);
       mode ? parent.insertBefore(node, afterNode) : parent.appendChild(node);
@@ -222,11 +222,11 @@ export function keyed (key, parent, renderedValues, data, createFn, noOp = noOpU
 
   // Fast path for full replace
   if (reusingNodes === 0) {
-    if (beforeNode !== undefined || afterNode !== undefined) {
-      let node = beforeNode !== undefined ? beforeNode.nextSibling : parent.firstChild;
+    if (beforeNode || afterNode) {
+      let node = beforeNode ? beforeNode.nextSibling : parent.firstChild;
       let tmp;
 
-      if (afterNode === undefined) afterNode = null;
+      if (!afterNode) afterNode = null;
 
       while (node !== afterNode) {
         tmp = node.nextSibling;
