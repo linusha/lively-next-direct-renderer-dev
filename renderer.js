@@ -583,6 +583,10 @@ export default class Stage0Renderer {
    */
   updateNodeScrollFromMorph (morph) {
     const node = this.getNodeForMorph(morph);
+    // TODO: this might be uneeded and could be removed?
+    if (!node){
+      return;
+    }
     const { x, y } = morph.scroll;
     node.scrollTop = y;
     node.scrollLeft = x;
@@ -785,6 +789,8 @@ export default class Stage0Renderer {
    * @param {TextMorph} morph - The TextMorph which has changes that warrant the addition/removal of a ScrollLayer.  
    */
   handleScrollLayer (node, morph) {
+    // TODO: this might be unneeded and could be removed?
+    if (!node) return;
     if (morph.renderingState.needsScrollLayerAdded) {
       if (node.querySelector('.scrollWrapper')) {
         delete morph.renderingState.needsScrollLayerAdded;
@@ -1513,12 +1519,14 @@ export default class Stage0Renderer {
    * @param {TextMorph} morph - The TextMorph for which the text should be (re)rendered.
    */
   renderTextAndAttributes (node, morph) {
-    // FIXME:  hackz
+    // FIXME:  Enforce label having labelMode = true,
+    // this should be done somewhere else, when the Label subclass is finally gone for good
     if (morph.isLabel && !morph.labelMode){
       morph.setProperty('labelMode', true);
     } 
     if (morph.labelMode && morph.document) morph.makeUninteractive();
     const textNode = node.querySelector(`#${morph.id}textLayer`);
+
     if (morph.labelMode) textNode.replaceChildren(...this.renderAllLines(morph));
     else {
       if (morph.debug) textNode.querySelectorAll('.debug-line, .debug-char, .debug-info').forEach(n => n.remove());
