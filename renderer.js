@@ -170,11 +170,7 @@ export default class Stage0Renderer {
 
     for (let morph of morphsToHandle) {
       if (morph.renderingState.hasStructuralChanges) this.morphsWithStructuralChanges.push(morph);
-      // For inline morphs, trigger updating of line
-      if (morph.renderingState.needsRerender && morph._isInline) {
-        this.renderedMorphsWithChanges.push(morph.ownerChain().find(m => m.isSmartText));
-      }
-      if (morph.renderingState.needsRerender && !morph._isInline) this.renderedMorphsWithChanges.push(morph);
+      if (morph.renderingState.needsRerender) this.renderedMorphsWithChanges.push(morph);
       if (morph.renderingState.animationAdded) this.renderedMorphsWithAnimations.push(morph);
     }
 
@@ -257,11 +253,9 @@ export default class Stage0Renderer {
   renderMorph (morph, force) {
     let node;
     node = this.renderMap.get(morph);
-    if (force || morph._isInline || !node) {
+    if (force || !node) {
       node = morph.getNodeForRenderer(this); // returns a DOM node as specified by the morph
-      // inline morphs will be rendered again inside of the font metric
-      // ignore the morph map here in order to not mess the actually rendered node up
-      if (!morph._isInline) this.renderMap.set(morph, node);
+      this.renderMap.set(morph, node);
     }
 
     applyAttributesToNode(morph, node);
@@ -378,12 +372,13 @@ export default class Stage0Renderer {
     const node = this.getNodeForMorph(morph);
 
     let submorphsToRender = morph.submorphs; // the order of these is important to make sure that morphs overlap each other correctly
+
     if (morph.isWorld){
       submorphsToRender = morph.submorphs.filter(sm => !sm.hasFixedPosition)
     }
-    // these embedded morphs are not really submorphs, but only for a really short time
-    submorphsToRender = submorphsToRender.filter(sm => !sm._isInline);
-
+    if (morph.isSmartText){
+      submorphsToRender = submorphsToRender.filter(subm => !morph.embeddedMorphMap.has(subm))
+    }
     // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
     // Optimization for when a morph has no longer any submorphs.
     // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -408,8 +403,10 @@ export default class Stage0Renderer {
       morph.renderingState.hasStructuralChanges = false;
       return;
     }
+
     // Due to the early return, we know that we have submorphs here.
     let alreadyRenderedSubmorphs = morph.renderingState.renderedMorphs;
+    
     let newlyRenderedSubmorphs = withoutAll(submorphsToRender, alreadyRenderedSubmorphs);
     if (morph.isWorld) {
       alreadyRenderedSubmorphs = withoutAll(alreadyRenderedSubmorphs, morph.renderingState.renderedFixedMorphs);
@@ -498,7 +495,7 @@ export default class Stage0Renderer {
       // submorph.afterRenderHook(node);
     } */
 
-    morph.renderingState.renderedMorphs = morph.submorphs.filter(sm => !(sm.hasFixedPosition && morph.isWorld) && !sm._isInline)
+    morph.renderingState.renderedMorphs = morph.submorphs.filter(sm => !(sm.hasFixedPosition && morph.isWorld) && !(morph.isSmartText && morph.embeddedMorphMap.has(sm)))
     morph.renderingState.hasStructuralChanges = false;
   }
 
@@ -875,7 +872,7 @@ export default class Stage0Renderer {
 
     const renderedChunks = [];
 
-    let content, attributes, fontSize, nativeCursor, textStyleClasses, link, tagname, chunkNodeStyle, nodeAttrs, paddingRight, paddingLeft, paddingTop, paddingBottom, lineHeight, textAlign, wordSpacing, letterSpacing, quote, textStroke, fontFamily, fontWeight, textDecoration, fontStyle, fontColor, backgroundColor, verticalAlign, chunkNodeAttributes;
+    let content, attributes, fontSize, nativeCursor, textStyleClasses, link, tagname, chunkNodeStyle, paddingRight, paddingLeft, paddingTop, paddingBottom, lineHeight, textAlign, wordSpacing, letterSpacing, quote, textStroke, fontFamily, fontWeight, textDecoration, fontStyle, fontColor, backgroundColor, verticalAlign, chunkNodeAttributes;
     let minFontSize = morph.fontSize;
 
     if (size > 0) {
@@ -887,7 +884,6 @@ export default class Stage0Renderer {
         if (typeof content !== 'string') {
           renderedChunks.push(
             content.isMorph
-            // TODO: how does this work?
               ? this.renderMorphInLine(content, attributes)
               : objectReplacementChar);
           continue;
@@ -983,7 +979,7 @@ export default class Stage0Renderer {
         node = quoteNode;
       }
     }
-    if (lineObject.isLine && isRealRender) { lineObject.needsRerender = false; }
+    if (lineObject.isLine && isRealRender) lineObject.needsRerender = false;
     return node;
   }
 
@@ -996,7 +992,6 @@ export default class Stage0Renderer {
 
   /**
    * Renders a morph embedded inline in a Text. Only takes care of morphs that should be treated as a single text character in the text flow.
-   * For morphs that are rendered with this method `morph._isInline === true`.
    * @param {Morph} morph - The morph to be rendered.
    * @param {Object} attr - An Object with which some properties of `morph` can be overwritten.
    * @returns {Node} The node of the morph to be added as a child of a node for a line.
