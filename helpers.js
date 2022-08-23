@@ -17,6 +17,15 @@ export function applyStylingToNode (morph, node) {
   }
 
   stylepropsToNode(styleProps, node); // eslint-disable-line no-use-before-define
+
+  if (morph.owner && morph.owner.isSmartText && morph.owner.embeddedMorphMap.has(morph)){
+    node.style.position = 'sticky';
+    node.style.transform = '';
+    node.style.textAlign = 'initial';
+    node.style.removeProperty('top');
+    node.style.removeProperty('left');
+  }
+
   return node;
 }
 
