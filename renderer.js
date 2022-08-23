@@ -717,6 +717,7 @@ export default class Stage0Renderer {
       }
       const textLayerForFontMeasure = this.textLayerNodeFor(morph);
       // hackz
+      textLayerForFontMeasure.id = morph.id + 'font-measure'; 
       textLayerForFontMeasure.classList.remove('actual');
       textLayerForFontMeasure.classList.add('font-measure');
       node.appendChild(textLayerForFontMeasure);
@@ -729,7 +730,7 @@ export default class Stage0Renderer {
     } else node.appendChild(textLayer);
     this.renderTextAndAttributes(node, morph);
     if (morph.document) {
-      const textLayerNode = node.querySelector('.actual');
+      const textLayerNode = node.querySelector(`#${morph.id}textLayer`);
       this.updateExtentsOfLines(textLayerNode, morph);
     }
     return node;
@@ -835,6 +836,7 @@ export default class Stage0Renderer {
     if (selectionMode === 'native') textLayerClasses = textLayerClasses + ' selectable';
 
     const node = this.doc.createElement('div');
+    node.id = morph.id + 'textLayer';
     const style = morph.styleObject();
     stylepropsToNode(style, node);
     morph.renderingState.nodeStyleProps = style;
@@ -966,6 +968,7 @@ export default class Stage0Renderer {
     if (lineObject.isLine) {
       node.dataset.row = lineObject.row;
     }
+    node.id = morph.id + 'lineNode' + node.dataset.row;
     stylepropsToNode(lineStyle, node);
     node.append(...renderedChunks);
 
@@ -1485,7 +1488,7 @@ export default class Stage0Renderer {
       if (!line) break;
     }
 
-    this.updateFillerDIV(node, heightBefore);
+    this.updateFillerDIV(morph, node, heightBefore);
 
     Object.assign(morph.viewState, {
       scrollTop,
@@ -1515,7 +1518,7 @@ export default class Stage0Renderer {
       morph.setProperty('labelMode', true);
     } 
     if (morph.labelMode && morph.document) morph.makeUninteractive();
-    const textNode = node.querySelector('.actual');
+    const textNode = node.querySelector(`#${morph.id}textLayer`);
     if (morph.labelMode) textNode.replaceChildren(...this.renderAllLines(morph));
     else {
       if (morph.debug) textNode.querySelectorAll('.debug-line, .debug-char, .debug-info').forEach(n => n.remove());
@@ -1625,8 +1628,8 @@ export default class Stage0Renderer {
    * @param {Node} node - DOM node of a text morph
    * @param {Number} heightBefore - Height before the visible lines start in pixels.
    */
-  updateFillerDIV (node, heightBefore) {
-    const textLayer = node.querySelector('.actual');
+  updateFillerDIV (morph, node, heightBefore) {
+    const textLayer = node.querySelector(`#${morph.id}textLayer`);
     const filler = textLayer.querySelector('.newtext-before-filler');
     if (filler) {
       filler.style.height = heightBefore + 'px';
@@ -1675,8 +1678,8 @@ export default class Stage0Renderer {
    * @param {Object} newStyle - Style Object which is to be applied to the text layer node.
    */
   patchTextLayerStyleObject (node, morph, newStyle) {
-    const textLayer = node.querySelector('.actual');
-    const fontMeasureTextLayer = node.querySelector('.font-measure');
+    const textLayer = node.querySelector(`#${morph.id}textLayer`);
+    const fontMeasureTextLayer = node.querySelector(`#${morph.id}font-measure`);
     stylepropsToNode(newStyle, textLayer);
     stylepropsToNode(newStyle, fontMeasureTextLayer);
     morph.renderingState.nodeStyleProps = newStyle;
@@ -1692,8 +1695,8 @@ export default class Stage0Renderer {
     const oldWrappingClass = lineWrappingToClass(morph.renderingState.lineWrapping);
     const newWrappingClass = morph.fixedWidth ? lineWrappingToClass(morph.lineWrapping) : lineWrappingToClass(false);
 
-    const textLayer = node.querySelector('.actual');
-    const fontMeasureTextLayer = node.querySelector('.font-measure');
+    const textLayer = node.querySelector(`#${morph.id}textLayer`);
+    const fontMeasureTextLayer = node.querySelector(`#${morph.id}font-measure`);
 
     textLayer.classList.remove(oldWrappingClass);
     fontMeasureTextLayer.classList.remove(oldWrappingClass);
@@ -1728,7 +1731,7 @@ export default class Stage0Renderer {
    * @param {TextMorph} morph - The morph for which the debug layer is to be displayed.
    */
   updateDebugLayer (node, morph) {
-    const textNode = node.querySelector('.actual');
+    const textNode = node.querySelector(`#${morph.id}textLayer`);
     textNode.querySelectorAll('.debug-line, .debug-char, .debug-info').forEach(n => n.remove());
     if (morph.debug) textNode.append(...this.renderDebugLayer(morph));
   }
@@ -1747,7 +1750,7 @@ export default class Stage0Renderer {
 
     const node = this.getNodeForMorph(morph);
     if (!node) return Rectangle.inset(0);
-    const textNode = node.querySelector('.actual');
+    const textNode = node.querySelector(`#${morph.id}textLayer`);
     const prevParent = textNode.parentNode;
     this.placeholder.appendChild(textNode);
     const domMeasure = textNode.getBoundingClientRect();
