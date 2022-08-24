@@ -860,7 +860,7 @@ export default class Stage0Renderer {
    * @returns {Node} The DOM node for the line (`DIV`).
    */
   nodeForLine (lineObject, morph, isRealRender = false) {
-    if (lineObject === null) lineObject = '';
+    if (!lineObject) lineObject = '';
     let line;
     if (morph.isListItemMorph) {
       line = morph.textAndAttributes.flat()
