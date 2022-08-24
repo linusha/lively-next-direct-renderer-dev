@@ -13,10 +13,6 @@ import { addOrChangeCSSDeclaration, addOrChangeLinkedCSS, config } from 'lively.
 
 const svgNs = 'http://www.w3.org/2000/svg';
 
-/**
- * Currently handles rendering of a single Stage0Morph that acts as a "world", similar to the purporse a world would serve in normal lively.
- * This allows us to hack into the default render loop of lively.
- */
 export default class Stage0Renderer {
   // -=-=-=-
   // SETUP
@@ -102,8 +98,35 @@ export default class Stage0Renderer {
   }
 
   renderStep () {
-    this.renderWorld();
-    return this;
+    this.emptyRenderQueues();
+    this.worldMorph.applyLayoutIfNeeded(); // cascades through all submorphs and applies the javascript layouts
+
+    const morphsToHandle = this.worldMorph.withAllSubmorphsDo(m => m);
+
+    this.renderFixedMorphs();
+
+    // Handling these first allows us to assume correct wrapping, when we have submorphs already!
+    for (let morph of morphsToHandle) {
+      if (morph.renderingState.hasCSSLayoutChange) this.renderLayoutChange(morph);
+    }
+
+    for (let morph of morphsToHandle) {
+      if (morph.renderingState.hasStructuralChanges) this.morphsWithStructuralChanges.push(morph);
+      if (morph.renderingState.needsRerender) this.renderedMorphsWithChanges.push(morph);
+      if (morph.renderingState.animationAdded) this.renderedMorphsWithAnimations.push(morph);
+    }
+
+    for (let morph of this.morphsWithStructuralChanges) {
+      this.renderStructuralChanges(morph);
+    }
+
+    for (let morph of this.renderedMorphsWithChanges) {
+      this.renderStylingChanges(morph);
+    }
+
+    for (let morph of this.renderedMorphsWithAnimations) {
+      this.handleAddedAnimationChange(morph);
+    }
   }
 
   /**
@@ -141,45 +164,6 @@ export default class Stage0Renderer {
   // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
   //  HIGHER LEVEL RENDERING FUNCTIONS
   // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-
-  /**
-   * Called to initialize and update the custom VDOM node as long as we are hooked into the default lively renderer.
-   */
-  renderWorld () {
-    this.emptyRenderQueues();
-    this.worldMorph.applyLayoutIfNeeded(); // cascades through all submorphs and applies the javascript layouts
-
-    const morphsToHandle = this.worldMorph.withAllSubmorphsDo(m => m);
-
-    this.renderFixedMorphs();
-
-    // Handling these first allows us to assume correct wrapping, when we have submorphs already!
-    for (let morph of morphsToHandle) {
-      if (morph.renderingState.hasCSSLayoutChange) this.renderLayoutChange(morph);
-    }
-
-    for (let morph of morphsToHandle) {
-      if (morph.renderingState.hasStructuralChanges) this.morphsWithStructuralChanges.push(morph);
-      if (morph.renderingState.needsRerender) this.renderedMorphsWithChanges.push(morph);
-      if (morph.renderingState.animationAdded) this.renderedMorphsWithAnimations.push(morph);
-    }
-
-    for (let morph of this.morphsWithStructuralChanges) {
-      this.renderStructuralChanges(morph);
-    }
-
-    for (let morph of this.renderedMorphsWithChanges) {
-      this.renderStylingChanges(morph);
-    }
-
-    for (let morph of this.renderedMorphsWithAnimations) {
-      this.handleAddedAnimationChange(morph);
-    }
-    // This is only necessary while we are the "guest-renderer", can be removed once we actually migrate
-    this.worldMorph.makeDirty();
-    return this.bodyNode;
-  }
-
   handleAddedAnimationChange(morph){
     const node = this.getNodeForMorph(morph);
 
