@@ -1,9 +1,7 @@
-/* global addOrChangeCSSDeclaration */
 import { applyAttributesToNode, lineWrappingToClass, stylepropsToNode, applyStylingToNode } from './helpers.js';
 import { withoutAll } from 'lively.lang/array.js';
 import { arr, num, obj } from 'lively.lang';
 import { getSvgVertices, canBePromotedToCompositionLayer } from 'lively.morphic/rendering/property-dom-mapping.js';
-import { setCSSDef } from 'lively.morphic/rendering/dom-helper.js';
 import { cssForTexts } from './css-decls.js';
 import { Rectangle, pt } from 'lively.graphics';
 import { objectReplacementChar } from 'lively.morphic/text/new-document.js';
@@ -11,7 +9,7 @@ import { objectReplacementChar } from 'lively.morphic/text/new-document.js';
 import { keyed, noOpUpdate } from './keyed.js';
 import promise from 'lively.lang/promise.js';
 import { defaultCSS } from 'lively.morphic/rendering/morphic-default.js';
-import { addOrChangeLinkedCSS, config } from 'lively.morphic';
+import { addOrChangeCSSDeclaration, addOrChangeLinkedCSS, config } from 'lively.morphic';
 
 const svgNs = 'http://www.w3.org/2000/svg';
 
@@ -126,20 +124,12 @@ export default class Stage0Renderer {
     this.placeholder = this.doc.body.appendChild(placeholder);
   }
 
-  // TODO: Clean up and consolidate CSS creation methods
   installTextCSS () {
-    const style = document.createElement('style');
-    style.type = 'text/css';
-    style.id = 'stylesfortext';
-    // TODO: make more robust
-    if (Array.from(this.doc.head.children).find(c => c.id === 'stylesfortext')) return null;
-    setCSSDef(style, cssForTexts, this.doc);
-    (this.doc.head || this.doc).appendChild(style);
-    return style;
+    addOrChangeCSSDeclaration('styles-for-text',cssForTexts,this.doc);
   }
 
   ensureDefaultCSS () {
-    const fm = this.worldMorph.env.fontMetric;
+    const fm = $world.env.fontMetric;
     return promise.waitFor(3000, () => this.domNode.getRootNode())
       .then(doc => Promise.all([
         addOrChangeCSSDeclaration('lively-morphic-css', defaultCSS, doc),
