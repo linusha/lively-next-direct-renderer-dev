@@ -608,6 +608,9 @@ export default class Stage0Renderer {
 
     node.appendChild(canvasNode);
 
+    const hasNewCanvas = morph._canvas !== canvasNode && canvasNode.tagName === 'CANVAS';
+    morph.afterRender(canvasNode, hasNewCanvas);
+    
     return node;
   }
 
@@ -2242,18 +2245,6 @@ ${((height / 2) - (bh / height) * (height / 2)) + (y * height) - (height / 2)})`
     node.append(...stopNodes);
 
     return node;
-  }
-
-  // -=-=-=-
-  // HOOKS
-  // -=-=-=-
-  hooksForCanvas () {
-    return [function (morph, node) {
-      const canvasNode = node.firstChild;
-      const hasNewCanvas = morph._canvas !== canvasNode && canvasNode.tagName === 'CANVAS';
-      morph.afterRender(canvasNode, hasNewCanvas);
-    }
-    ];
   }
 
   /**
