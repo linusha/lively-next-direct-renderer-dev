@@ -458,17 +458,6 @@ export default class Stage0Renderer {
       this.updateNodeScrollFromMorph(morph);
     }
 
-    // TODO: migrate actual hook over
-    /* for (let submorph of newlyRenderedSubmorphs) {
-      const node = this.getNodeForMorph(submorph);
-      const hooks = submorph.getHooksForRenderer(this);
-      for (let hook of hooks) {
-        hook(submorph, node);
-      }
-      // TODO: this is not enough, we could have multiple hooks!
-      // submorph.afterRenderHook(node);
-    } */
-
     morph.renderingState.renderedMorphs = morph.submorphs.filter(sm => !(sm.hasFixedPosition && morph.isWorld) && !(morph.isSmartText && morph.embeddedMorphMap.has(sm)))
     morph.renderingState.hasStructuralChanges = false;
   }
@@ -500,7 +489,6 @@ export default class Stage0Renderer {
 
     // fixme: hackz
     if (morph.isSmartText && !morph.labelMode) node.style.overflow = 'hidden';
-    // TODO: this needs to call the after render hooks later on
     morph._dirty = false;
     morph.renderingState.needsRerender = false;
   }
