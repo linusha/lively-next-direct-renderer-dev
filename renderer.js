@@ -1,9 +1,9 @@
 import { applyAttributesToNode, lineWrappingToClass, stylepropsToNode, applyStylingToNode } from './helpers.js';
 import { withoutAll } from 'lively.lang/array.js';
-import { arr, num, obj } from 'lively.lang';
+import { arr, tree, num, obj } from 'lively.lang';
 import { getSvgVertices, canBePromotedToCompositionLayer } from 'lively.morphic/rendering/property-dom-mapping.js';
 import { cssForTexts } from './css-decls.js';
-import { Rectangle, pt } from 'lively.graphics';
+import { Rectangle, pt, Transform } from 'lively.graphics';
 import { objectReplacementChar } from 'lively.morphic/text/new-document.js';
 
 import { keyed, noOpUpdate } from './keyed.js';
@@ -2254,5 +2254,74 @@ ${((height / 2) - (bh / height) * (height / 2)) + (y * height) - (height / 2)})`
       morph.afterRender(canvasNode, hasNewCanvas);
     }
     ];
+  }
+
+  /**
+   * Creates a DOM node that is a "preview" of the morph, i.e. a
+   * representation that looks like the morph but doesn't have morphic behavior
+   * attached.
+   * Include the css and fonts into the preview as well, to serve as a server side pre-
+   * rendering to speed up loading times of frozen parts.
+   * @param {*} morph 
+   * @param {*} opts 
+   * @returns 
+   */
+  renderPreview (morph, opts) {
+    // FIXME doesn't work with scale yet...!
+
+    const {
+      width = 100, height = 100, center = true, ignoreMorphs = [],
+      asNode = false
+    } = opts;
+    const {
+      scale, position, origin, rotation
+    } = morph;
+    const goalWidth = width;
+    const goalHeight = height;
+    const safeScale = Math.max(0.1, 1 / scale); // Chrome crashes with too small scaling
+    const invTfm = new Transform(position.negated(), 0, pt(safeScale, safeScale));
+    const bbox = invTfm.transformRectToRect(morph.bounds());
+    const w = bbox.width; const h = bbox.height;
+    const ratio = Math.max(0.1, Math.min(goalWidth / w, goalHeight / h));
+    let tfm = new Transform(
+      bbox.topLeft().negated().scaleBy(ratio).subPt(origin),
+      rotation, pt(ratio, ratio));
+
+    let node = this.getNodeForMorph(morph);
+    if (node) node = node.cloneNode(true);
+    else node = renderMorph(morph);
+
+    if (center) {
+      const previewBounds = tfm.transformRectToRect(
+        morph.extent.extentAsRectangle());
+      const offsetX = previewBounds.width < goalWidth
+        ? (goalWidth - previewBounds.width) / 2
+        : 0;
+      const offsetY = previewBounds.height < goalHeight
+        ? (goalHeight - previewBounds.height) / 2
+        : 0;
+      tfm = tfm.preConcatenate(new Transform(pt(offsetX, offsetY)));
+    }
+
+    node.style.transform = tfm.toCSSTransformString();
+    node.style.pointerEvents = '';
+
+    // preview nodes must not appear like nodes of real morphs otherwise we
+    // mistaken them for morphs and do wrong stuff in event dispatch etc.
+    tree.prewalk(node, (node) => {
+      if (typeof node.className !== 'string') return;
+      const cssClasses = node.className
+        .split(' ') 
+        .map(ea => ea.trim())
+        .filter(Boolean);
+      const isMorph = cssClasses.includes('Morph');
+      if (!isMorph) return;
+      node.className = arr.withoutAll(cssClasses, ['morph', 'Morph']).join(' ');
+      if (ignoreMorphs.find(m => m.id === node.id)) node.remove();
+      node.id = '';
+    },
+    node => Array.from(node.childNodes));
+
+    return asNode ? node : node.outerHTML;
   }
 }
