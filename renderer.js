@@ -1618,6 +1618,7 @@ export default class Stage0Renderer {
    * @param {Node} node - DOM node in which a text morph is rendered. 
    * @param {TextMorph} morph
    */
+  // FIXME: Somehow, the size of the child is unbound, as the document continously grows when scrolling
   adjustScrollLayerChildSize (node, morph) {
     const scrollLayer = node.querySelectorAll('.scrollLayer')[0];
     if (!scrollLayer) return;
@@ -1635,11 +1636,21 @@ export default class Stage0Renderer {
    * @param {TextMorph} morph
    */
   scrollScrollLayerFor (node, morph) {
+    const scrollLayer = node.querySelectorAll('.scrollLayer')[0];
     const scrollWrapper = node.querySelectorAll('.scrollWrapper')[0];
-    if (!scrollWrapper) return;
-    scrollWrapper.style.transform = `translate(-${morph.scroll.x}px, -${morph.scroll.y}px)`;
-    morph.renderingState.scroll = morph.scroll;
-    this.renderTextAndAttributes(node, morph);
+
+    if (scrollLayer && scrollWrapper){
+      // FIXME: Introduced to fix "scroll skipping", i.e., a reset of the scroll-position when for example navigating
+      // with the code entities listed in the browser columns.
+      // There might be an opportunity to shove off a few cycles of redundant work here,
+      // as changing the `scrollTop` value of the scrollLayer seems to update the displayed text as well?
+      scrollLayer.scrollTop = morph.scroll.y;
+      scrollLayer.scrollLeft = morph.scroll.x;
+      
+      scrollWrapper.style.transform = `translate(-${morph.scroll.x}px, -${morph.scroll.y}px)`;
+      morph.renderingState.scroll = morph.scroll;
+      this.renderTextAndAttributes(node, morph);
+    }
   }
 
   /**
