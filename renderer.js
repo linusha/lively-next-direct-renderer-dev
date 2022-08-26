@@ -478,6 +478,11 @@ export default class Stage0Renderer {
    * @param { Morph } morph - The morph for which to update the rendering.
    */
   renderStylingChanges (morph) {
+    if (morph._requestMasterStyling) {
+      morph.master && morph.master.applyIfNeeded(true);
+      morph._requestMasterStyling = false;
+    };
+
     morph.renderingState.needsRemeasure = true;
     const node = this.getNodeForMorph(morph);
 
