@@ -1531,6 +1531,7 @@ export default class Stage0Renderer {
         // this basically ignores the needsRerender flag for now when embedding morphs inline into a text
         if (!line.needsRerender && line.textAndAttributs && !line.textAndAttributes.some(ta => ta && ta.isMorph)) continue;
         const oldLineNode = textNode.children[i];
+        if (!oldLineNode) continue;
         const newLineNode = this.nodeForLine(line, morph, true);
         textNode.replaceChild(newLineNode, oldLineNode);
       }
