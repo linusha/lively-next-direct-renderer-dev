@@ -37,7 +37,6 @@ export function applyStylingToNode (morph, node) {
  */
 export function stylepropsToNode (styleProps, node) {
   for (let prop in styleProps) {
-    // fixme: this is more of a hack and is probably already implemented somewhere else as well
     let name = prop.replace(/([A-Z])/g, '-$1');
     name = name.toLowerCase();
     node.style.setProperty(name, styleProps[prop]);
@@ -47,8 +46,6 @@ export function stylepropsToNode (styleProps, node) {
 
 /**
   * @param {Morph} morph - The Morph for which to generate the attributes. 
-  * Equivalent to defaultAttributes from `lively.morphic/rendering/morphic-default.js`
-  * but with morph-after-render-hook removed
   */
 function defaultAttributes (morph) {
   const attrs = {

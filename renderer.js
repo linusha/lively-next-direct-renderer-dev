@@ -19,13 +19,11 @@ export default class Stage0Renderer {
   // -=-=-=-
 
   /**
-   * description
-   * @param {type} owningMorph - description
-   * @param {Node} rootNode - Parentnode of the node that the world gets rendered into
-   * @param {type} domEnvironment - 
-   * rootNode will later be used for easier integration into the normal render flow
+   * @param {Morph} world - The world that this renderer renders 
+   * @param {Node} rootNode - Parent node of the node that the world gets rendered into
+   * @param {DomEnvironment} domEnvironment
    */
-  constructor (world /* like world in the actual renderer I think */, rootNode, domEnvironment) {
+  constructor (world, rootNode, domEnvironment) {
     if (!world || !world.isMorph) { throw new Error(`Trying to initialize renderer with an invalid world morph: ${world}`); }
     if (!rootNode || !('nodeType' in rootNode)) { throw new Error(`Trying to initialize renderer with an invalid root node: ${rootNode}`); }
 
@@ -53,10 +51,41 @@ export default class Stage0Renderer {
     this.bodyNode.appendChild(this.rootNode);
     world._renderer = this;
     this.requestAnimationFrame = domEnvironment.window.requestAnimationFrame.bind(domEnvironment.window);
-
   }
 
-  async clear () {
+  /**
+   * Placeholder currently used for measuring the bounds of TextMorph in Label mode.
+   * @returns {Node} The node in which the nodes to be measured can be mounted.
+   */
+   installPlaceholder () {
+    this.placeholder = this.placeholder || this.doc.getElementById('placeholder');
+
+    if (this.placeholder) return;
+
+    const placeholder = this.doc.createElement('div');
+    placeholder.id = 'placeholder';
+    placeholder.style.height = 'auto';
+    placeholder.style.width = 'auto';
+    placeholder.style.visibility = 'hidden';
+    placeholder.style.position = 'absolute';
+    this.placeholder = this.doc.body.appendChild(placeholder);
+  }
+
+  installTextCSS () {
+    addOrChangeCSSDeclaration('styles-for-text',cssForTexts,this.doc);
+  }
+
+  ensureDefaultCSS () {
+    const fm = $world.env.fontMetric;
+    return promise.waitFor(3000, () => this.domNode.getRootNode())
+      .then(doc => Promise.all([
+        addOrChangeCSSDeclaration('lively-morphic-css', defaultCSS, doc),
+        promise.waitFor(1000, () => fm.isFontSupported('IBM Plex Sans') && fm.isFontSupported('IBM Plex Mono'), false).then((isSupported) => !isSupported && addOrChangeLinkedCSS('lively-ibm-plex', config.css.ibmPlex)), // those are many files, is there a smaller one?
+        addOrChangeLinkedCSS('lively-font-awesome', config.css.fontAwesome, doc, false),
+        addOrChangeLinkedCSS('lively-font-inconsolata', config.css.inconsolata, doc, false)]));
+  }
+
+  clear () {
     const domNode = this.domNode;
     try {
       await this.stopRenderWorldLoop();
@@ -97,6 +126,12 @@ export default class Stage0Renderer {
     });
   }
 
+  /**
+   * The heart of the rendering process.
+   * The general logic is as follows: We traverse through all morphs in the world and fill different queues depending on some criteria.
+   * Fixed morphs are handled separately at the beginning fo the method.
+   * Afterwards, we take care of CSS Layouts, morphs for which we need to adjust properties and morphs for which we need to adjust structure, e.g., a submorph was added. 
+   */
   renderStep () {
     this.emptyRenderQueues();
     this.worldMorph.applyLayoutIfNeeded(); // cascades through all submorphs and applies the javascript layouts
@@ -105,7 +140,7 @@ export default class Stage0Renderer {
 
     this.renderFixedMorphs();
 
-    // Handling these first allows us to assume correct wrapping, when we have submorphs already!
+    // handling these first allows us to assume correct wrapping, when we have submorphs already!
     for (let morph of morphsToHandle) {
       if (morph.renderingState.hasCSSLayoutChange) this.renderLayoutChange(morph);
     }
@@ -127,38 +162,6 @@ export default class Stage0Renderer {
     for (let morph of this.renderedMorphsWithAnimations) {
       this.handleAddedAnimationChange(morph);
     }
-  }
-
-  /**
-   * Placeholder currently used for measuring the bounds of TextMorph in Label mode.
-   * @returns {Node} The node in which the nodes to be measured can be mounted.
-   */
-  installPlaceholder () {
-    this.placeholder = this.placeholder || this.doc.getElementById('placeholder');
-
-    if (this.placeholder) return;
-
-    const placeholder = this.doc.createElement('div');
-    placeholder.id = 'placeholder';
-    placeholder.style.height = 'auto';
-    placeholder.style.width = 'auto';
-    placeholder.style.visibility = 'hidden';
-    placeholder.style.position = 'absolute';
-    this.placeholder = this.doc.body.appendChild(placeholder);
-  }
-
-  installTextCSS () {
-    addOrChangeCSSDeclaration('styles-for-text',cssForTexts,this.doc);
-  }
-
-  ensureDefaultCSS () {
-    const fm = $world.env.fontMetric;
-    return promise.waitFor(3000, () => this.domNode.getRootNode())
-      .then(doc => Promise.all([
-        addOrChangeCSSDeclaration('lively-morphic-css', defaultCSS, doc),
-        promise.waitFor(1000, () => fm.isFontSupported('IBM Plex Sans') && fm.isFontSupported('IBM Plex Mono'), false).then((isSupported) => !isSupported && addOrChangeLinkedCSS('lively-ibm-plex', config.css.ibmPlex)), // those are many files, is there a smaller one?
-        addOrChangeLinkedCSS('lively-font-awesome', config.css.fontAwesome, doc, false),
-        addOrChangeLinkedCSS('lively-font-inconsolata', config.css.inconsolata, doc, false)]));
   }
 
   // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -187,7 +190,7 @@ export default class Stage0Renderer {
       item => this.renderAsFixed(item),
       noOpUpdate,
       beforeElem, // before elem
-      undefined // after elem
+      null
     );
     fixedSubmorphs.forEach(s => {
       this.updateNodeScrollFromMorph(s);
@@ -197,7 +200,9 @@ export default class Stage0Renderer {
 
   renderAsFixed (morph) {
     morph.withAllSubmorphsDo(sm => {
-      // TODO: hack that compensates a problem with updating renderedLines
+      // FIXME: There was a problem with renderedLines of fixedMorphs, for which the root cause could not be identified.
+      // This fixes that, by rerendering all lines of renderedLines. This is only problematic in the case a Text would be a fixed Morph.
+      // For Labels, the performance implication can be neglected.
       if (sm.renderingState.renderedLines) sm.renderingState.renderedLines = [];
     })
     const node = this.renderMorph(morph);
@@ -288,6 +293,7 @@ export default class Stage0Renderer {
    * Can be used idempotent, aka when the nodes are already children of the owner morph's node, nothing will happen.
    * This is used for example when a CSS layout gets applied to a morph containing submorphs.
    * @param {Node} node - Node of the morph for which submorphs should get unwrapped.
+   * @param {Morph} morph - Morph of which the submorphs should be unwrapped.
    */
   unwrapSubmorphNodesIfNecessary (node, morph) {
     // do nothing if submorph nodes are not wrapped
@@ -311,7 +317,7 @@ export default class Stage0Renderer {
   }
 
   /**
-   * Gets calles whenever a layouts gets applied/removed from a Morph. A morph can have exactly one layout.
+   * Gets called whenever a (CSS) layout gets applied/removed from a Morph. A morph can have exactly one layout.
    * Depending on whether a layout gets applied/removed, we take care of the DOM nodes (move them into/outside of) the wrapper node.
    * After changing the layout of a morph, all its submorphs need to be rerendered, since their position might have changed. 
    * @param {Morph} morph - Morph of which the layout property was changed.
@@ -319,8 +325,7 @@ export default class Stage0Renderer {
   renderLayoutChange (morph) {
     const node = this.getNodeForMorph(morph);
 
-    // TODO: this might never be an actual possibility, once the stage0renderer is the only renderer in town
-    // This was introduced as a fix for when a morph with an active CSS layout was dropped into the Stage0Morph 
+    // FIXME: It might be, that this precaution is no longer necessary and we can remove this check.
     // Second case is for erly returning unneeded wrapping, since we only want to install wrappers when they are needed.
     if (!node || morph.submorphs.length === 0) return;
 
@@ -328,8 +333,8 @@ export default class Stage0Renderer {
 
     if (layoutAdded) {
       this.unwrapSubmorphNodesIfNecessary(node, morph);
-    } else { // no css layout applied at the moment
-      this.installWrapperNodeFor(morph, node, true);
+    } else {
+      this.installWrapperNodeFor(morph, node, true); // no css layout applied at the moment
     }
     morph.renderingState.hasCSSLayoutChange = false;
     morph.submorphs.forEach(s => s.renderingState.needsRerender = true);
@@ -342,20 +347,17 @@ export default class Stage0Renderer {
    * @param { Morph } morph - The morph which has had changed to its submorph hierarchy.
    */
   renderStructuralChanges (morph) {
-    // Invariant: Morph has been rendered previously.
-    const node = this.getNodeForMorph(morph);
+    const node = this.getNodeForMorph(morph); // Invariant: Morph has been rendered previously.
 
     let submorphsToRender = morph.submorphs; // the order of these is important to make sure that morphs overlap each other correctly
 
     if (morph.isWorld){
-      submorphsToRender = morph.submorphs.filter(sm => !sm.hasFixedPosition)
+      submorphsToRender = morph.submorphs.filter(sm => !sm.hasFixedPosition) // fixed morph are handed separately in `renderStep()`
     }
     if (morph.isSmartText){
       submorphsToRender = submorphsToRender.filter(subm => !morph.embeddedMorphMap.has(subm))
     }
-    // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-    // Optimization for when a morph has no longer any submorphs.
-    // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+    // Optimization for when a morph has no longer any submorphs
     if (submorphsToRender.length === 0) {
       if (morph.isPath) {
         // two SVG nodes are necessary
@@ -397,8 +399,8 @@ export default class Stage0Renderer {
           submorphsToRender,
           item => this.renderMorph(item),
           noOpUpdate,
-          firstSvg, // before elem
-          secondSvg// after elem
+          firstSvg,
+          secondSvg
         );
       } else {
         this.installWrapperNodeFor(morph, node);
@@ -411,8 +413,8 @@ export default class Stage0Renderer {
       }
     } else if (morph.isSmartText) {
       if (skipWrapping) {
-        // TODO: talk about this from a conceptual point of view with robin
-        // TODO: this is not enough to enforce that the problematic aspect of this (i.e. adding a layout ONTO a text morph) does not occur 
+        // TODO: This is not enough to enforce that the problematic aspect of this (i.e. adding a layout ONTO a text morph) does not occur!
+        // However, this should be tackled from a tooling viewpoint.
         $world.setStatusMessage('Not supported for SmartText');
       } else {
         this.installWrapperNodeFor(morph, node);
@@ -423,9 +425,9 @@ export default class Stage0Renderer {
           item => this.renderMorph(item)
         );
       }
-    } else { // morph is not path
+    } else { // morph is not path and not text
       if (skipWrapping) {
-        // Hack solely for the MullerColumns!!!
+        // FIXME: Hack solely for the MullerColumns!!!
         // super bad, should not exists!!!!
         // DANGER!
         if (alreadyRenderedSubmorphs.length === 1) {
@@ -439,7 +441,7 @@ export default class Stage0Renderer {
           submorphsToRender,
           item => this.renderMorph(item),
           noOpUpdate,
-          this.isComposite(morph) ? node.firstChild : null // before list
+          this.isComposite(morph) ? node.firstChild : null
         );
       } else {
         this.installWrapperNodeFor(morph, node);
@@ -475,7 +477,7 @@ export default class Stage0Renderer {
   /**
    * Assumes that a DOM node for the given morph already exists and changes the attributes of this node according to the current style definition of the morph.
    * `patchSpecialProps` can be implemented on a given morph to render changes that are not reflected by the (default) set CSS attributes or to manipulate childnodes.
-   * @param { Morph } morph - The morph for which to update the rendering.
+   * @param { Morph } morph - The morph for which to update the DOM node.
    */
   renderStylingChanges (morph) {
     if (morph._requestMasterStyling) {
@@ -492,7 +494,7 @@ export default class Stage0Renderer {
 
     applyStylingToNode(morph, node);
 
-    // fixme: hackz
+    // FIXME: when the text abstraction is done
     if (morph.isSmartText && !morph.labelMode) node.style.overflow = 'hidden';
     morph._dirty = false;
     morph.renderingState.needsRerender = false;
@@ -550,7 +552,7 @@ export default class Stage0Renderer {
    */
   updateNodeScrollFromMorph (morph) {
     const node = this.getNodeForMorph(morph);
-    // TODO: this might be uneeded and could be removed?
+    // FIXME: this might be not needed and could be removed?
     if (!node){
       return;
     }
@@ -682,22 +684,23 @@ export default class Stage0Renderer {
       This means, that when scrolling in such a morph, the lines (divs) are exchanged/updated.
       For some reason, changing the subnodes of a DOM node that is simultaneously scrolled will lead to unsmooth scrolling.
       With this trick, the scrollLayer is the node that actually gets scrolled, while we can exchange all line nodes as we like.
-      Since for non-interactive text all lines are rendered once, this trick in not needed.
+      Since for non-interactive text all lines are rendered once, this trick is not needed there.
     */
     if (!morph.labelMode) {
-      if (morph.document) { // fixme hack
+      // FIXME: This needs to be removed once the details of the new Text abstraction are worked out...
+      if (morph.document) {
         scrollLayerNode = this.renderScrollLayer(morph);
         node.appendChild(scrollLayerNode);
       }
       const textLayerForFontMeasure = this.textLayerNodeFor(morph);
-      // hackz
       textLayerForFontMeasure.id = morph.id + 'font-measure'; 
       textLayerForFontMeasure.classList.remove('actual');
       textLayerForFontMeasure.classList.add('font-measure');
       node.appendChild(textLayerForFontMeasure);
     }
 
-    if (!morph.labelMode && morph.document) { // fixme hack
+    // FIXME: This needs to be removed once the details of the new Text abstraction are worked out...
+    if (!morph.labelMode && morph.document) {
       const scrollWrapper = this.scrollWrapperFor(morph);
       node.appendChild(scrollWrapper);
       scrollWrapper.appendChild(textLayer);
@@ -714,11 +717,13 @@ export default class Stage0Renderer {
    * When the TextMorph is set up to be interactive we decouple scrolling of the text
    * via a separate scroll layer that captures the scroll events from the user.
    * @param {Text} morph - The TextMorph to be rendered.
+   * @returns {Node} DOM Node of scrollLayer.
    */
   renderScrollLayer (morph) {
     const horizontalScrollBarVisible = morph.document.width > morph.width;
     const scrollBarOffset = horizontalScrollBarVisible ? morph.scrollbarOffset : pt(0, 0);
     const verticalPaddingOffset = morph.padding.top() + morph.padding.bottom();
+
     const node = this.doc.createElement('div');
     node.classList.add('scrollLayer');
     node.style.position = 'absolute';
@@ -759,8 +764,9 @@ export default class Stage0Renderer {
    * @param {TextMorph} morph - The TextMorph which has changes that warrant the addition/removal of a ScrollLayer.  
    */
   handleScrollLayer (node, morph) {
-    // TODO: this might be unneeded and could be removed?
+    // FIXME: this might not be needed and could be removed?
     if (!node) return;
+
     if (morph.renderingState.needsScrollLayerAdded) {
       if (node.querySelector('.scrollWrapper')) {
         delete morph.renderingState.needsScrollLayerAdded;
@@ -777,6 +783,7 @@ export default class Stage0Renderer {
         delete morph.renderingState.needsScrollLayerRemoved;
         return;
       }
+
       node.querySelector('.scrollLayer').remove();
       const wrapper = node.querySelector('.scrollWrapper');
       Array.from(wrapper.children).forEach(c => node.append(c));
@@ -803,10 +810,10 @@ export default class Stage0Renderer {
     let textLayerClasses = 'newtext-text-layer actual';
 
     // TODO: we want to support right and left align also for morpht that have a non-fixed widht and or height
+    // This is something that should be thought of when developing the new Text abstraction
     textLayerClasses = textLayerClasses + ' ' + (fixedWidth ? lineWrappingToClass(lineWrapping) : lineWrappingToClass(false));
 
-    // TODO: we want to support right and left align also for morpht that have a non-fixed widht and or height
-    // TODO: this is what fucks up the allignment of the annotations in e.g. the run command menu
+    // FIXME: this is what fucks up the allignment of the annotations in e.g. the run command menu
     if (!fixedWidth) textLayerClasses = textLayerClasses + ' auto-width';
     if (!fixedHeight) textLayerClasses = textLayerClasses + ' auto-height';
     if (selectionMode === 'native') textLayerClasses = textLayerClasses + ' selectable';
@@ -948,8 +955,6 @@ export default class Stage0Renderer {
     stylepropsToNode(lineStyle, node);
     node.append(...renderedChunks);
 
-    // node.append(this.doc.createElement('br'));
-
     if (quote) {
       if (typeof quote !== 'number') quote = 1;
       for (let i = quote; i--;) {
@@ -958,6 +963,7 @@ export default class Stage0Renderer {
         node = quoteNode;
       }
     }
+
     if (lineObject.isLine && isRealRender) lineObject.needsRerender = false;
     return node;
   }
@@ -971,12 +977,14 @@ export default class Stage0Renderer {
 
   /**
    * Renders a morph embedded inline in a Text. Only takes care of morphs that should be treated as a single text character in the text flow.
+   * Thus, this in case a more complex hierarchy is embedded into a Text, only the outer-most morph (for which this.parent === text) gets rendered with this method.
+   * Afterwards, @see renderStructuralChanges takes over. 
    * @param {Morph} morph - The morph to be rendered.
    * @param {Object} attr - An Object with which some properties of `morph` can be overwritten.
    * @returns {Node} The node of the morph to be added as a child of a node for a line.
    */
   renderMorphInLine (morph, attr) {
-    // TODO: investigate if this is necessary 
+    // FIXME: investigate if this is necessary 
     attr = attr || {};
     const rendered = this.renderMorph(morph);
     rendered.style.position = 'sticky';
@@ -994,12 +1002,11 @@ export default class Stage0Renderer {
     return rendered;
   }
 
-  // TODO: This is seemingy only used for SamrtTexts that are in Label-Mode. 
-  // Thus, the naming is probably not great. Also, we return undefined in the case that a normal text morph is given...also not ideal.  
+  // TODO: This is seemingy only used for SmartTexts that are in Label-Mode. Thus, the naming is...not ideal :D
   /**
    * Creates nodes for all lines present in a Text morph which is in label mode. 
    * Is based on the assumption, that in these cases `textAndAttributes` are already split into lines (i.e. the pairs for each line are in their own array).
-   * The is as follows: [['text',{},'line1',{}],['text',{},'line2',{}],[...]]
+   * Example: [['text',{},'line1',{}],['text',{},'line2',{}],[...]]
    * @param {Morph} morph - The morph for which to render the lines.
    * @returns {Node[]} An array of nodes that represent lines.
    */
@@ -1011,6 +1018,8 @@ export default class Stage0Renderer {
         const newLine = this.nodeForLine(morph.textAndAttributes[i], morph, true);
         renderedLines.push(newLine);
       }
+      // FIXME: This is necessary since those utilize "valueAndAnnotation", and this messes up the current (primitive) line-splitting.
+      // Can be removed once the working abstraction for Text is there!
       if (morph.isListItemMorph) renderedLines = renderedLines.slice(0,1);
     }
     return renderedLines;
@@ -1094,12 +1103,12 @@ export default class Stage0Renderer {
     return node;
   }
 
-  // TODO: this needs to be updated once the different selection modes (native, lively, none) work as expected.
+  // FIXME: this needs to be updated once the different selection modes (native, lively, none) work as expected.
   /**
    * When a TextMorph is set up to support selections we render our custom
    * selection layer instead of the HTML one which we can not control.
    * @param {Text} morph - The TextMorph to be rendered.
-   * @ returns {Node[]} An array of SVG Nodes that represent the selection to be displayed, including a cursor.
+   * @returns {Node[]} An array of SVG Nodes that represent the selection to be displayed, including a cursor.
    */
   renderSelectionLayer (morph) {
     if (!morph.document || !morph.selection) return [];
@@ -1152,7 +1161,7 @@ export default class Stage0Renderer {
     let row = selection.start.row;
     let yOffset = document.computeVerticalOffsetOf(row) + morph.padding.top();
     const paddingLeft = morph.padding.left();
-    const bufferOffset = 50; // todo: what does this do?
+    const bufferOffset = 50;
 
     let charBounds,
       selectionTopLeft,
@@ -1255,7 +1264,7 @@ export default class Stage0Renderer {
 
   /**
    * Renders the slices as specified in renderSelectionLayer to SVG, utilizing a rounded corner
-   * selection style that is stolen from MS Studio Code.
+   * selection style that is stolen from Visual Studio Code.
    * @param {Rectangle[]} slice - The slices to render.
    * @param {Color} selectionColor - The color of the rendered selection.
    * @param {Text} morph - The TextMorph to be rendered.
@@ -1332,8 +1341,7 @@ export default class Stage0Renderer {
   }
 
   /**
-   * Renders the debug layer of a TextMorph, which visualizes the bounds computed
-   * by the text layout.
+   * Renders the debug layer of a TextMorph, which visualizes the bounds computed by the text layout.
    * @param {TextMorph} morph - The text morph to visualize the text layout for.
    * @return {Node[]} An array of DOM nodes that comprise the debug layer.
    */
@@ -1450,7 +1458,6 @@ export default class Stage0Renderer {
 
     morph.maxVisibleLines = Math.max(morph.maxVisibleLines || 1, lastVisibleRow - firstVisibleRow + 1);
 
-    // NEW NEW NEW 
     morph.renderingState.maxVisibleLines = morph.maxVisibleLines;
     morph.renderingState.startLine = firstVisibleRow;
 
@@ -1533,7 +1540,7 @@ export default class Stage0Renderer {
       let i = 0; // the first child is always the filler, we can skip it
       for (const line of morph.renderingState.renderedLines) {
         i++;
-        // this basically ignores the needsRerender flag for now when embedding morphs inline into a text
+        // FIXME: this basically ignores the needsRerender flag for now when embedding morphs inline into a text
         if (!line.needsRerender && line.textAndAttributs && !line.textAndAttributes.some(ta => ta && ta.isMorph)) continue;
         const oldLineNode = textNode.children[i];
         if (!oldLineNode) continue;
@@ -1563,12 +1570,14 @@ export default class Stage0Renderer {
    * @param {TextMorph} morph - The TextMorph which selections were changed. 
    */
   patchSelectionLayer (node, morph) {
-    if (!node) return; // fixme
+    // FIXME: This might not be needed and can savely be removed? 
+    if (!node) return;
     node.querySelectorAll('div.newtext-cursor').forEach(c => c.remove());
     node.querySelectorAll('svg.selection').forEach(s => s.remove());
     const nodeToAppendTo = morph.labelMode ? node : node.querySelectorAll('.scrollWrapper')[0];
     nodeToAppendTo.append(...this.renderSelectionLayer(morph));
-    morph.renderingState.selection = morph.selection; // not yet working
+    // FIXME: not yet working, the update mechanism for this has no flags, i.e., might running more often than necessary
+    morph.renderingState.selection = morph.selection;
   }
 
   /**
@@ -1577,11 +1586,12 @@ export default class Stage0Renderer {
    * @param {TextMorph} morph - The TextMorph which markers were changed. 
    */
   patchMarkerLayer (node, morph) {
-    if (!node) return; // fixme
+    // FIXME: This might not be needed and can savely be removed? 
+    if (!node) return;
     node.querySelectorAll('div.newtext-marker-layer').forEach(s => s.remove());
     const nodeToAppendTo = morph.labelMode ? node : node.querySelectorAll('.scrollWrapper')[0];
     nodeToAppendTo.append(...this.renderMarkerLayer(morph));
-    morph.renderingState.markers = morph.markers; // not yet working
+    morph.renderingState.markers = morph.markers;
   }
 
   /**
@@ -1650,6 +1660,7 @@ export default class Stage0Renderer {
       // with the code entities listed in the browser columns.
       // There might be an opportunity to shove off a few cycles of redundant work here,
       // as changing the `scrollTop` value of the scrollLayer seems to update the displayed text as well?
+      // However, why that updates the text as well is not entirely understood and thus it is unclear how robust it would be to abuse this.
       scrollLayer.scrollTop = morph.scroll.y;
       scrollLayer.scrollLeft = morph.scroll.x;
       
@@ -1662,7 +1673,7 @@ export default class Stage0Renderer {
   /**
    * Updates the style of a text layer based on the style object of a text morph.
    * The style object contains e.g. padding, fontWeigth, ...
-   * @see SmartText >> styleObject()
+   * @see { SmartText >> styleObject() }
    * @param {Node} node - DOM node in which a Text is rendered. 
    * @param {TextMorph} morph - TextMorph of which the textLayer is to be updated.
    * @param {Object} newStyle - Style Object which is to be applied to the text layer node.
@@ -1822,7 +1833,7 @@ export default class Stage0Renderer {
          morph.fontMetric.isFontSupported(morph.fontFamily, morph.fontWeight)) {
         docLine.changeExtent(nodeWidth, nodeHeight, false);
         morph.textLayout.resetLineCharBoundsCacheOfLine(docLine);
-        morph.viewState._needsFit = true; // is this still needed? what did it do?
+        morph.viewState._needsFit = true; // FIXME: is this still needed? what did it do?
       }
 
       // positions embedded morphs
