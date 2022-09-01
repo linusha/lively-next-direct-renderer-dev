@@ -13,7 +13,7 @@ import { addOrChangeCSSDeclaration, addOrChangeLinkedCSS, config } from 'lively.
 
 const svgNs = 'http://www.w3.org/2000/svg';
 
-export default class Stage0Renderer {
+export default class Renderer {
   // -=-=-=-
   // SETUP
   // -=-=-=-
