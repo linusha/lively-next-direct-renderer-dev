@@ -18,7 +18,7 @@ The code for the renderer alone is not sufficient to run anything and there is n
 However, this repository remains, so that the development history of the renderer is still available.
 
 
-This also means, that this repository probably does not contain the most up-to-date of the renderer code anymore. Instead, it would be in the `lively.next` repository.
+This also means, that this repository probably does not contain the most up-to-date of the renderer code anymore. Instead, it would be in the `lively.next` repository. The new renderer was merged into `lively.next` with [this Pull Request](https://github.com/LivelyKernel/lively.next/pull/448).
 
 ## High-level Concept
 
